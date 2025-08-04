@@ -58,13 +58,22 @@ if uploaded_file:
                             "id": uid,
                             "total_word_count": total_words
                         }
+
                         for col in classifier_columns:
                             values = group[col].astype(float)
+                            found_terms_col = f"found_{col}_terms"
+
+                            if found_terms_col in group.columns:
+                                positive_rows = group[values > 0]
+                                word_count = positive_rows[found_terms_col].astype(str).apply(lambda x: len(x.split())).sum()
+                            else:
+                                word_count = 0
+
                             positive_ratio = (values > 0).sum() / len(values)
-                            word_count = int(round(total_words * positive_ratio))
                             agg_result[f"{col}_word_count"] = word_count
                             agg_result[f"{col}_percentage"] = round(positive_ratio * 100)
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
+
                         results.append(agg_result)
 
                 result_df = pd.DataFrame(results)
