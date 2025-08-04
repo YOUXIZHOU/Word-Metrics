@@ -61,7 +61,7 @@ if uploaded_file:
                                 found_word_count = 0
 
                             percentage = found_word_count / total_word_count if total_word_count > 0 else 0
-                            result[f"{col}_percentage"] = round(percentage * 100, 1)  # ⭐ Keep 1 decimal place
+                            result[f"{col}_percentage"] = percentage * 100  # 🔥 No rounding
 
                         results.append(result)
 
@@ -101,7 +101,7 @@ if uploaded_file:
 
                             positive_ratio = (values > 0).sum() / len(values)
                             agg_result[f"{col}_word_count"] = word_count
-                            agg_result[f"{col}_percentage"] = round(positive_ratio * 100, 1)
+                            agg_result[f"{col}_percentage"] = positive_ratio * 100  # 🔥 No rounding
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
 
                         results.append(agg_result)
