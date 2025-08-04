@@ -20,7 +20,10 @@ if uploaded_file:
         # Column selections
         id_column = st.selectbox("Select ID Column", options=df.columns, index=0)
         text_column = st.selectbox("Select Text/Statement Column", options=df.columns, index=1)
-        classifier_columns = st.multiselect("Select Classifier Columns", options=[col for col in df.columns if col not in [id_column, text_column]])
+        classifier_columns = st.multiselect(
+            "Select Classifier Columns",
+            options=[col for col in df.columns if col not in [id_column, text_column]]
+        )
 
         process_mode = st.radio("Processing Mode", ["Statement-level", "Aggregate to ID-level"])
 
@@ -40,23 +43,24 @@ if uploaded_file:
                             "word_count": total_word_count
                         }
 
+                        # Optional like/comment columns
+                        if "number_likes" in df.columns:
+                            result["number_likes"] = row.get("number_likes", 0)
+                        if "number_comments" in df.columns:
+                            result["number_comments"] = row.get("number_comments", 0)
+
                         for col in classifier_columns:
                             val = float(row.get(col, 0))
                             result[col] = val
 
-                            # ✅ 修正 has_ 前綴，對應正確欄位
                             base_col = col.removeprefix("has_")
                             found_terms_col = f"found_{base_col}_terms"
                             found_terms = row.get(found_terms_col, [])
 
-                            # ✅ Robust parsing
                             if isinstance(found_terms, str):
                                 try:
                                     parsed = ast.literal_eval(found_terms)
-                                    if isinstance(parsed, list):
-                                        found_terms = parsed
-                                    else:
-                                        found_terms = []
+                                    found_terms = parsed if isinstance(parsed, list) else []
                                 except:
                                     found_terms = []
                             elif not isinstance(found_terms, list):
@@ -78,9 +82,13 @@ if uploaded_file:
                             "total_word_count": total_words
                         }
 
+                        if "number_likes" in df.columns:
+                            agg_result["total_likes"] = group["number_likes"].sum()
+                        if "number_comments" in df.columns:
+                            agg_result["total_comments"] = group["number_comments"].sum()
+
                         for col in classifier_columns:
                             values = group[col].astype(float)
-
                             base_col = col.removeprefix("has_")
                             found_terms_col = f"found_{base_col}_terms"
 
@@ -92,10 +100,7 @@ if uploaded_file:
                                     if isinstance(item, str):
                                         try:
                                             parsed = ast.literal_eval(item)
-                                            if isinstance(parsed, list):
-                                                terms = parsed
-                                            else:
-                                                terms = []
+                                            terms = parsed if isinstance(parsed, list) else []
                                         except:
                                             terms = []
                                     elif isinstance(item, list):
@@ -113,11 +118,40 @@ if uploaded_file:
                             agg_result[f"{col}_percentage"] = positive_ratio * 100
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
 
+                            if "number_likes" in df.columns:
+                                agg_result[f"{col}_likes"] = group[values > 0]["number_likes"].sum()
+                            if "number_comments" in df.columns:
+                                agg_result[f"{col}_comments"] = group[values > 0]["number_comments"].sum()
+
                         results.append(agg_result)
 
                 result_df = pd.DataFrame(results)
                 st.success(f"Processed {len(result_df)} rows.")
 
+                # --- Tactic Likes/Comments Summary ---
+                if "number_likes" in df.columns and "number_comments" in df.columns and process_mode == "Statement-level":
+                    tactic_stats = []
+                    for col in classifier_columns:
+                        pos_rows = result_df[result_df[col] > 0]
+                        total_likes = pos_rows["number_likes"].sum()
+                        total_comments = pos_rows["number_comments"].sum()
+                        avg_likes = pos_rows["number_likes"].mean()
+                        avg_comments = pos_rows["number_comments"].mean()
+
+                        tactic_stats.append({
+                            "tactic": col,
+                            "positive_statements": len(pos_rows),
+                            "total_likes": int(total_likes),
+                            "avg_likes": round(avg_likes, 2) if not np.isnan(avg_likes) else 0,
+                            "total_comments": int(total_comments),
+                            "avg_comments": round(avg_comments, 2) if not np.isnan(avg_comments) else 0
+                        })
+
+                    summary_df = pd.DataFrame(tactic_stats)
+                    st.subheader("🧮 Tactic Impact Summary (Based on Positive Statements Only)")
+                    st.dataframe(summary_df, use_container_width=True)
+
+                # --- Preview Result Table ---
                 with st.expander("📊 Preview Results (First 100 Rows)"):
                     st.dataframe(result_df.head(100), use_container_width=True)
 
