@@ -87,8 +87,8 @@ if uploaded_file:
                 result_df = pd.DataFrame(results)
                 st.success(f"Processed {len(result_df)} rows.")
 
-                with st.expander("📊 Preview Results (First 20 Rows)"):
-                    st.dataframe(result_df.head(20), use_container_width=True)
+                with st.expander("📊 Preview Results (First 100 Rows)"):
+                    st.dataframe(result_df.head(100), use_container_width=True)
 
                 # --- Download CSV ---
                 csv = result_df.to_csv(index=False).encode('utf-8')
