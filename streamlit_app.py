@@ -17,10 +17,6 @@ if uploaded_file:
         df = pd.read_csv(uploaded_file)
         st.success(f"Uploaded {uploaded_file.name} with {len(df)} rows.")
 
-        # Check for optional columns
-        has_likes = "number_likes" in df.columns
-        has_comments = "number_comments" in df.columns
-
         # Column selections
         id_column = st.selectbox("Select ID Column", options=df.columns, index=0)
         text_column = st.selectbox("Select Text/Statement Column", options=df.columns, index=1)
@@ -44,19 +40,16 @@ if uploaded_file:
                             "word_count": total_word_count
                         }
 
-                        if has_likes:
-                            result["number_likes"] = row.get("number_likes", 0)
-                        if has_comments:
-                            result["number_comments"] = row.get("number_comments", 0)
-
                         for col in classifier_columns:
                             val = float(row.get(col, 0))
                             result[col] = val
 
+                            # ✅ 修正 has_ 前綴，對應正確欄位
                             base_col = col.removeprefix("has_")
                             found_terms_col = f"found_{base_col}_terms"
                             found_terms = row.get(found_terms_col, [])
 
+                            # ✅ Robust parsing
                             if isinstance(found_terms, str):
                                 try:
                                     parsed = ast.literal_eval(found_terms)
@@ -71,11 +64,11 @@ if uploaded_file:
 
                             found_word_count = len(found_terms)
                             percentage = found_word_count / total_word_count if total_word_count > 0 else 0
-                            result[f"{col}_percentage"] = percentage * 100
+                            result[f"{col}_percentage"] = percentage * 100  # no rounding
 
                         results.append(result)
 
-                else:  # ID-level
+                else:  # ID-level aggregation
                     grouped = df.groupby(id_column)
                     for uid, group in grouped:
                         statements = group[text_column].astype(str).tolist()
@@ -85,45 +78,40 @@ if uploaded_file:
                             "total_word_count": total_words
                         }
 
-                        if has_likes:
-                            agg_result["total_likes"] = group["number_likes"].sum()
-                        if has_comments:
-                            agg_result["total_comments"] = group["number_comments"].sum()
-
                         for col in classifier_columns:
                             values = group[col].astype(float)
+
                             base_col = col.removeprefix("has_")
                             found_terms_col = f"found_{base_col}_terms"
 
-                            # Get mask of positive rows
-                            positive_mask = values > 0
-                            positive_rows = group[positive_mask]
+                            if found_terms_col in group.columns:
+                                positive_rows = group[values > 0]
+                                found_counts = []
 
-                            # Sum found term counts in positive rows
-                            word_count = 0
-                            for item in positive_rows.get(found_terms_col, []):
-                                if isinstance(item, str):
-                                    try:
-                                        parsed = ast.literal_eval(item)
-                                        terms = parsed if isinstance(parsed, list) else []
-                                    except:
+                                for item in positive_rows[found_terms_col]:
+                                    if isinstance(item, str):
+                                        try:
+                                            parsed = ast.literal_eval(item)
+                                            if isinstance(parsed, list):
+                                                terms = parsed
+                                            else:
+                                                terms = []
+                                        except:
+                                            terms = []
+                                    elif isinstance(item, list):
+                                        terms = item
+                                    else:
                                         terms = []
-                                elif isinstance(item, list):
-                                    terms = item
-                                else:
-                                    terms = []
-                                word_count += len(terms)
+                                    found_counts.append(len(terms))
 
-                            positive_ratio = positive_mask.sum() / len(group)
+                                word_count = sum(found_counts)
+                            else:
+                                word_count = 0
+
+                            positive_ratio = (values > 0).sum() / len(values)
                             agg_result[f"{col}_word_count"] = word_count
                             agg_result[f"{col}_percentage"] = positive_ratio * 100
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
-
-                            # ✅ Likes/comments from positive rows
-                            if has_likes:
-                                agg_result[f"{col}_likes"] = positive_rows["number_likes"].sum()
-                            if has_comments:
-                                agg_result[f"{col}_comments"] = positive_rows["number_comments"].sum()
 
                         results.append(agg_result)
 
