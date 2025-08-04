@@ -4,6 +4,7 @@ import numpy as np
 import io
 import base64
 import random
+import ast
 
 st.set_page_config(page_title="Classifier Word Metrics", layout="wide")
 st.title("📊 Classifier Word Metrics")
@@ -43,17 +44,24 @@ if uploaded_file:
 
                         for col in classifier_columns:
                             val = float(row.get(col, 0))
-                            result[col] = val  # No "_binary"
+                            result[col] = val  # Keep original column name
 
                             found_terms_col = f"found_{col}_terms"
-                            if found_terms_col in df.columns:
-                                found_terms = str(row.get(found_terms_col, ""))
-                                found_word_count = len(found_terms.split())
+                            found_terms = row.get(found_terms_col, [])
+
+                            if isinstance(found_terms, str):
+                                try:
+                                    found_terms = ast.literal_eval(found_terms)
+                                except:
+                                    found_terms = []
+
+                            if isinstance(found_terms, list):
+                                found_word_count = len(found_terms)
                             else:
                                 found_word_count = 0
 
                             percentage = found_word_count / total_word_count if total_word_count > 0 else 0
-                            result[f"{col}_percentage"] = round(percentage * 100)
+                            result[f"{col}_percentage"] = round(percentage * 100, 1)  # ⭐ Keep 1 decimal place
 
                         results.append(result)
 
@@ -73,13 +81,27 @@ if uploaded_file:
 
                             if found_terms_col in group.columns:
                                 positive_rows = group[values > 0]
-                                word_count = positive_rows[found_terms_col].astype(str).apply(lambda x: len(x.split())).sum()
+                                found_counts = []
+
+                                for item in positive_rows[found_terms_col]:
+                                    if isinstance(item, str):
+                                        try:
+                                            terms = ast.literal_eval(item)
+                                        except:
+                                            terms = []
+                                    elif isinstance(item, list):
+                                        terms = item
+                                    else:
+                                        terms = []
+                                    found_counts.append(len(terms))
+
+                                word_count = sum(found_counts)
                             else:
                                 word_count = 0
 
                             positive_ratio = (values > 0).sum() / len(values)
                             agg_result[f"{col}_word_count"] = word_count
-                            agg_result[f"{col}_percentage"] = round(positive_ratio * 100)
+                            agg_result[f"{col}_percentage"] = round(positive_ratio * 100, 1)
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
 
                         results.append(agg_result)
