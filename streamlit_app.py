@@ -7,7 +7,7 @@ import random
 
 st.set_page_config(page_title="Classifier Word Metrics", layout="wide")
 st.title("📊 Classifier Word Metrics")
-st.markdown("Transform binary classifier results into continuous scores and ID-level metrics.")
+st.markdown("Transform binary classifier results into word-based metrics at the statement or ID level.")
 
 # --- Upload CSV ---
 st.header("1. Upload Your Data")
@@ -31,22 +31,30 @@ if uploaded_file:
 
                 if process_mode == "Statement-level":
                     for idx, row in df.iterrows():
+                        statement_text = str(row[text_column])
+                        total_word_count = len(statement_text.split())
+
                         result = {
                             "row_id": idx + 1,
                             "id": row[id_column],
-                            "statement": row[text_column],
-                            "word_count": len(str(row[text_column]).split())
+                            "statement": statement_text,
+                            "word_count": total_word_count
                         }
+
                         for col in classifier_columns:
                             val = float(row.get(col, 0))
-                            is_positive = val > 0
-                            if is_positive:
-                                score = min(0.95, max(0.5, val + random.uniform(-0.15, 0.15)))
+                            result[col] = val  # No "_binary"
+
+                            found_terms_col = f"found_{col}_terms"
+                            if found_terms_col in df.columns:
+                                found_terms = str(row.get(found_terms_col, ""))
+                                found_word_count = len(found_terms.split())
                             else:
-                                score = max(0.05, min(0.5, random.uniform(0.05, 0.4)))
-                            result[f"{col}_binary"] = val
-                            result[f"{col}_continuous"] = round(score, 3)
-                            result[f"{col}_percentage"] = round(score * 100)
+                                found_word_count = 0
+
+                            percentage = found_word_count / total_word_count if total_word_count > 0 else 0
+                            result[f"{col}_percentage"] = round(percentage * 100)
+
                         results.append(result)
 
                 else:  # ID-level aggregation
