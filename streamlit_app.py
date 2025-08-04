@@ -127,13 +127,15 @@ if uploaded_file:
                 result_df = pd.DataFrame(results)
                 st.success(f"Processed {len(result_df)} rows.")
 
-                # --- Tactic Impact Summary ---
+                # --- Tactic Impact Summary (based on original df, de-duplicated by ID) ---
                 if "number_likes" in df.columns and "number_comments" in df.columns and process_mode == "Statement-level":
                     tactic_stats = []
                     for col in classifier_columns:
-                        pos_rows = result_df[result_df[col] > 0]
-                        grouped = pos_rows.groupby("id")
+                        base_col = col.removeprefix("has_")
 
+                        pos_rows = df[df[col] > 0]
+
+                        grouped = pos_rows.groupby(id_column)
                         likes_per_post = grouped["number_likes"].first()
                         comments_per_post = grouped["number_comments"].first()
 
