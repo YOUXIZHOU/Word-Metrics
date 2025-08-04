@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import io
 import base64
-import random
 import ast
 
 st.set_page_config(page_title="Classifier Word Metrics", layout="wide")
@@ -44,12 +42,14 @@ if uploaded_file:
 
                         for col in classifier_columns:
                             val = float(row.get(col, 0))
-                            result[col] = val  # Keep original column name
+                            result[col] = val
 
-                            found_terms_col = f"found_{col}_terms"
+                            # ✅ 修正 has_ 前綴，對應正確欄位
+                            base_col = col.removeprefix("has_")
+                            found_terms_col = f"found_{base_col}_terms"
                             found_terms = row.get(found_terms_col, [])
 
-                            # 🔐 Robust list parsing
+                            # ✅ Robust parsing
                             if isinstance(found_terms, str):
                                 try:
                                     parsed = ast.literal_eval(found_terms)
@@ -59,14 +59,12 @@ if uploaded_file:
                                         found_terms = []
                                 except:
                                     found_terms = []
-
                             elif not isinstance(found_terms, list):
                                 found_terms = []
 
                             found_word_count = len(found_terms)
-
                             percentage = found_word_count / total_word_count if total_word_count > 0 else 0
-                            result[f"{col}_percentage"] = percentage * 100  # No rounding
+                            result[f"{col}_percentage"] = percentage * 100  # no rounding
 
                         results.append(result)
 
@@ -82,14 +80,15 @@ if uploaded_file:
 
                         for col in classifier_columns:
                             values = group[col].astype(float)
-                            found_terms_col = f"found_{col}_terms"
+
+                            base_col = col.removeprefix("has_")
+                            found_terms_col = f"found_{base_col}_terms"
 
                             if found_terms_col in group.columns:
                                 positive_rows = group[values > 0]
                                 found_counts = []
 
                                 for item in positive_rows[found_terms_col]:
-                                    # 🔐 Robust list parsing
                                     if isinstance(item, str):
                                         try:
                                             parsed = ast.literal_eval(item)
@@ -111,7 +110,7 @@ if uploaded_file:
 
                             positive_ratio = (values > 0).sum() / len(values)
                             agg_result[f"{col}_word_count"] = word_count
-                            agg_result[f"{col}_percentage"] = positive_ratio * 100  # No rounding
+                            agg_result[f"{col}_percentage"] = positive_ratio * 100
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
 
                         results.append(agg_result)
