@@ -26,55 +26,58 @@ if uploaded_file:
         process_mode = st.radio("Processing Mode", ["Statement-level", "Aggregate to ID-level"])
 
         if st.button("🚀 Process Data"):
-            results = []
+            with st.spinner("Processing... Please wait."):
+                results = []
 
-            if process_mode == "Statement-level":
-                for idx, row in df.iterrows():
-                    result = {
-                        "row_id": idx + 1,
-                        "id": row[id_column],
-                        "statement": row[text_column],
-                        "word_count": len(str(row[text_column]).split())
-                    }
-                    for col in classifier_columns:
-                        val = float(row.get(col, 0))
-                        is_positive = val > 0
-                        if is_positive:
-                            score = min(0.95, max(0.5, val + random.uniform(-0.15, 0.15)))
-                        else:
-                            score = max(0.05, min(0.5, random.uniform(0.05, 0.4)))
-                        result[f"{col}_binary"] = val
-                        result[f"{col}_continuous"] = round(score, 3)
-                        result[f"{col}_percentage"] = round(score * 100)
-                    results.append(result)
+                if process_mode == "Statement-level":
+                    for idx, row in df.iterrows():
+                        result = {
+                            "row_id": idx + 1,
+                            "id": row[id_column],
+                            "statement": row[text_column],
+                            "word_count": len(str(row[text_column]).split())
+                        }
+                        for col in classifier_columns:
+                            val = float(row.get(col, 0))
+                            is_positive = val > 0
+                            if is_positive:
+                                score = min(0.95, max(0.5, val + random.uniform(-0.15, 0.15)))
+                            else:
+                                score = max(0.05, min(0.5, random.uniform(0.05, 0.4)))
+                            result[f"{col}_binary"] = val
+                            result[f"{col}_continuous"] = round(score, 3)
+                            result[f"{col}_percentage"] = round(score * 100)
+                        results.append(result)
 
-            else:  # ID-level aggregation
-                grouped = df.groupby(id_column)
-                for uid, group in grouped:
-                    statements = group[text_column].astype(str).tolist()
-                    total_words = sum(len(s.split()) for s in statements)
-                    agg_result = {
-                        "id": uid,
-                        "total_word_count": total_words
-                    }
-                    for col in classifier_columns:
-                        values = group[col].astype(float)
-                        positive_ratio = (values > 0).sum() / len(values)
-                        word_count = int(round(total_words * positive_ratio))
-                        agg_result[f"{col}_word_count"] = word_count
-                        agg_result[f"{col}_percentage"] = round(positive_ratio * 100)
-                        agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
-                    results.append(agg_result)
+                else:  # ID-level aggregation
+                    grouped = df.groupby(id_column)
+                    for uid, group in grouped:
+                        statements = group[text_column].astype(str).tolist()
+                        total_words = sum(len(s.split()) for s in statements)
+                        agg_result = {
+                            "id": uid,
+                            "total_word_count": total_words
+                        }
+                        for col in classifier_columns:
+                            values = group[col].astype(float)
+                            positive_ratio = (values > 0).sum() / len(values)
+                            word_count = int(round(total_words * positive_ratio))
+                            agg_result[f"{col}_word_count"] = word_count
+                            agg_result[f"{col}_percentage"] = round(positive_ratio * 100)
+                            agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
+                        results.append(agg_result)
 
-            result_df = pd.DataFrame(results)
-            st.success(f"Processed {len(result_df)} rows.")
-            st.dataframe(result_df.head(10), use_container_width=True)
+                result_df = pd.DataFrame(results)
+                st.success(f"Processed {len(result_df)} rows.")
 
-            # --- Download CSV ---
-            csv = result_df.to_csv(index=False).encode('utf-8')
-            b64 = base64.b64encode(csv).decode()
-            href = f'<a href="data:file/csv;base64,{b64}" download="processed_results.csv">📥 Download Full Results CSV</a>'
-            st.markdown(href, unsafe_allow_html=True)
+                with st.expander("📊 Preview Results (First 20 Rows)"):
+                    st.dataframe(result_df.head(20), use_container_width=True)
+
+                # --- Download CSV ---
+                csv = result_df.to_csv(index=False).encode('utf-8')
+                b64 = base64.b64encode(csv).decode()
+                href = f'<a href="data:file/csv;base64,{b64}" download="processed_results.csv">📥 Download Full Results CSV</a>'
+                st.markdown(href, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Failed to read file: {e}")
