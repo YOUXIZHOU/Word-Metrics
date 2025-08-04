@@ -43,7 +43,6 @@ if uploaded_file:
                             "word_count": total_word_count
                         }
 
-                        # Optional like/comment columns
                         if "number_likes" in df.columns:
                             result["number_likes"] = row.get("number_likes", 0)
                         if "number_comments" in df.columns:
@@ -68,7 +67,7 @@ if uploaded_file:
 
                             found_word_count = len(found_terms)
                             percentage = found_word_count / total_word_count if total_word_count > 0 else 0
-                            result[f"{col}_percentage"] = percentage * 100  # no rounding
+                            result[f"{col}_percentage"] = percentage * 100
 
                         results.append(result)
 
@@ -128,19 +127,25 @@ if uploaded_file:
                 result_df = pd.DataFrame(results)
                 st.success(f"Processed {len(result_df)} rows.")
 
-                # --- Tactic Likes/Comments Summary ---
+                # --- Tactic Impact Summary ---
                 if "number_likes" in df.columns and "number_comments" in df.columns and process_mode == "Statement-level":
                     tactic_stats = []
                     for col in classifier_columns:
                         pos_rows = result_df[result_df[col] > 0]
-                        total_likes = pos_rows["number_likes"].sum()
-                        total_comments = pos_rows["number_comments"].sum()
-                        avg_likes = pos_rows["number_likes"].mean()
-                        avg_comments = pos_rows["number_comments"].mean()
+                        grouped = pos_rows.groupby("id")
+
+                        likes_per_post = grouped["number_likes"].first()
+                        comments_per_post = grouped["number_comments"].first()
+
+                        total_likes = likes_per_post.sum()
+                        avg_likes = likes_per_post.mean()
+                        total_comments = comments_per_post.sum()
+                        avg_comments = comments_per_post.mean()
 
                         tactic_stats.append({
                             "tactic": col,
                             "positive_statements": len(pos_rows),
+                            "unique_posts": len(grouped),
                             "total_likes": int(total_likes),
                             "avg_likes": round(avg_likes, 2) if not np.isnan(avg_likes) else 0,
                             "total_comments": int(total_comments),
@@ -148,10 +153,10 @@ if uploaded_file:
                         })
 
                     summary_df = pd.DataFrame(tactic_stats)
-                    st.subheader("🧮 Tactic Impact Summary (Based on Positive Statements Only)")
+                    st.subheader("🧮 Tactic Impact Summary (Per Unique Post, Based on Positive Statements)")
                     st.dataframe(summary_df, use_container_width=True)
 
-                # --- Preview Result Table ---
+                # --- Preview Results ---
                 with st.expander("📊 Preview Results (First 100 Rows)"):
                     st.dataframe(result_df.head(100), use_container_width=True)
 
