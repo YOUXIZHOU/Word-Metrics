@@ -49,19 +49,24 @@ if uploaded_file:
                             found_terms_col = f"found_{col}_terms"
                             found_terms = row.get(found_terms_col, [])
 
+                            # 🔐 Robust list parsing
                             if isinstance(found_terms, str):
                                 try:
-                                    found_terms = ast.literal_eval(found_terms)
+                                    parsed = ast.literal_eval(found_terms)
+                                    if isinstance(parsed, list):
+                                        found_terms = parsed
+                                    else:
+                                        found_terms = []
                                 except:
                                     found_terms = []
 
-                            if isinstance(found_terms, list):
-                                found_word_count = len(found_terms)
-                            else:
-                                found_word_count = 0
+                            elif not isinstance(found_terms, list):
+                                found_terms = []
+
+                            found_word_count = len(found_terms)
 
                             percentage = found_word_count / total_word_count if total_word_count > 0 else 0
-                            result[f"{col}_percentage"] = percentage * 100  # 🔥 No rounding
+                            result[f"{col}_percentage"] = percentage * 100  # No rounding
 
                         results.append(result)
 
@@ -84,9 +89,14 @@ if uploaded_file:
                                 found_counts = []
 
                                 for item in positive_rows[found_terms_col]:
+                                    # 🔐 Robust list parsing
                                     if isinstance(item, str):
                                         try:
-                                            terms = ast.literal_eval(item)
+                                            parsed = ast.literal_eval(item)
+                                            if isinstance(parsed, list):
+                                                terms = parsed
+                                            else:
+                                                terms = []
                                         except:
                                             terms = []
                                     elif isinstance(item, list):
@@ -101,7 +111,7 @@ if uploaded_file:
 
                             positive_ratio = (values > 0).sum() / len(values)
                             agg_result[f"{col}_word_count"] = word_count
-                            agg_result[f"{col}_percentage"] = positive_ratio * 100  # 🔥 No rounding
+                            agg_result[f"{col}_percentage"] = positive_ratio * 100  # No rounding
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
 
                         results.append(agg_result)
