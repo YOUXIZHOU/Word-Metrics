@@ -27,6 +27,12 @@ if uploaded_file:
 
         process_mode = st.radio("Processing Mode", ["Statement-level", "Aggregate to ID-level"])
 
+        # Precompute unique likes/comments per ID
+        if "number_likes" in df.columns and "number_comments" in df.columns:
+            id_likes_comments = df.groupby(id_column)[["number_likes", "number_comments"]].first().to_dict(orient="index")
+        else:
+            id_likes_comments = {}
+
         if st.button("🚀 Process Data"):
             with st.spinner("Processing... Please wait."):
                 results = []
@@ -43,10 +49,10 @@ if uploaded_file:
                             "word_count": total_word_count
                         }
 
-                        if "number_likes" in df.columns:
-                            result["number_likes"] = row.get("number_likes", 0)
-                        if "number_comments" in df.columns:
-                            result["number_comments"] = row.get("number_comments", 0)
+                        # Get likes/comments from precomputed unique values
+                        likes_info = id_likes_comments.get(row[id_column], {})
+                        result["number_likes"] = likes_info.get("number_likes", 0)
+                        result["number_comments"] = likes_info.get("number_comments", 0)
 
                         for col in classifier_columns:
                             val = float(row.get(col, 0))
@@ -81,10 +87,11 @@ if uploaded_file:
                             "total_word_count": total_words
                         }
 
+                        # Only use first row's like/comment to avoid double counting
                         if "number_likes" in df.columns:
-                            agg_result["total_likes"] = group["number_likes"].sum()
+                            agg_result["total_likes"] = group["number_likes"].iloc[0]
                         if "number_comments" in df.columns:
-                            agg_result["total_comments"] = group["number_comments"].sum()
+                            agg_result["total_comments"] = group["number_comments"].iloc[0]
 
                         for col in classifier_columns:
                             values = group[col].astype(float)
@@ -118,16 +125,16 @@ if uploaded_file:
                             agg_result[f"{col}_continuous_score"] = round(positive_ratio, 3)
 
                             if "number_likes" in df.columns:
-                                agg_result[f"{col}_likes"] = group[values > 0]["number_likes"].sum()
+                                agg_result[f"{col}_likes"] = group[values > 0]["number_likes"].iloc[0] if not group[values > 0].empty else 0
                             if "number_comments" in df.columns:
-                                agg_result[f"{col}_comments"] = group[values > 0]["number_comments"].sum()
+                                agg_result[f"{col}_comments"] = group[values > 0]["number_comments"].iloc[0] if not group[values > 0].empty else 0
 
                         results.append(agg_result)
 
                 result_df = pd.DataFrame(results)
                 st.success(f"Processed {len(result_df)} rows.")
 
-                # --- Tactic Impact Summary (based on original df, de-duplicated by ID) ---
+                # --- Tactic Impact Summary (based on original df, per ID) ---
                 if "number_likes" in df.columns and "number_comments" in df.columns and process_mode == "Statement-level":
                     tactic_stats = []
                     for col in classifier_columns:
